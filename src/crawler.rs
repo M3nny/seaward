@@ -78,13 +78,14 @@ fn get_document(url: &str) -> Option<Html> {
     }
 }
 
-pub fn crawl(url: &str, word: &str, visited: &mut HashSet<String>) {
+pub fn crawl(word: &str, url: &str, mut depth: i32) {
     let mut found_in_document: bool;
+    let mut visited = HashSet::<String>::new();
     let mut to_visit = VecDeque::new();
-    to_visit.push_back(url.to_string());
 
-    let pattern = format!("(?i)\\b{}\\b", word);
-    let regex = Regex::new(&pattern).expect("Failed to create regex");
+    let regex = Regex::new(&format!("(?i)\\b{}\\b", word)).expect("Failed to create regex");
+
+    to_visit.push_back(url.to_string());
 
     while let Some(current_url) = to_visit.pop_front() {
         if visited.contains(&current_url) {
@@ -94,10 +95,7 @@ pub fn crawl(url: &str, word: &str, visited: &mut HashSet<String>) {
 
         if let Some(document) = get_document(&current_url) {
             found_in_document = false;
-
             let links = find_links(&current_url, &document);
-
-            // selectors to be examined
             let selectors = vec!["title", "text", "p", "h1", "h2", "h3", "h4", "h5", "h6"];
 
             for selector in selectors {
@@ -124,9 +122,12 @@ pub fn crawl(url: &str, word: &str, visited: &mut HashSet<String>) {
                     println!();
                 }
             }
-            for link in links {
-                if !visited.contains(&link) {
-                    to_visit.push_back(link);
+            if depth != 0 {
+                depth -= 1;
+                for link in links {
+                    if !visited.contains(&link) {
+                        to_visit.push_back(link);
+                    }
                 }
             }
         }
