@@ -1,4 +1,7 @@
+use std::time::Duration;
 use scraper::{Html, Selector};
+use reqwest::blocking::Client;
+use reqwest::header::USER_AGENT;
 use colored::Colorize;
 use regex::Regex;
 use std::collections::{HashSet, VecDeque};
@@ -53,8 +56,9 @@ fn find_links(base_url: &str, document: &Html) -> HashSet<String> {
 }
 
 fn get_document(url: &str) -> Option<Html> {
-    let client = reqwest::blocking::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0")
+    let client = Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(3))
         .build()
         .expect("Failed to build reqwest client");
     let response = client.get(url).send();
