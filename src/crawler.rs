@@ -82,7 +82,14 @@ fn get_document(url: &str) -> Option<Html> {
     }
 }
 
-pub fn crawl(word: &str, url: &str, mut depth: i32) {
+pub fn crawl(url: &str, word: Option<&String>, depth: i32) {
+    match word {
+        Some(w) => {crawl_word(url, w, depth)},
+        None => {crawl_url(url, depth)}
+    }
+}
+
+fn crawl_word(url: &str, word: &str, mut depth: i32) {
     let mut found_in_document: bool;
     let mut visited = HashSet::<String>::new();
     let mut to_visit = VecDeque::new();
@@ -132,6 +139,38 @@ pub fn crawl(word: &str, url: &str, mut depth: i32) {
                     if !visited.contains(&link) {
                         to_visit.push_back(link);
                     }
+                }
+            }
+        }
+    }
+}
+
+fn crawl_url(url: &str, mut depth: i32) {
+    let mut visited = HashSet::<String>::new();
+    let mut to_visit = VecDeque::new();
+
+    to_visit.push_back(url.to_string());
+
+    while let Some(current_url) = to_visit.pop_front() {
+        if visited.contains(&current_url) {
+            continue;
+        }
+        visited.insert(current_url.clone());
+
+        if let Some(document) = get_document(&current_url) {
+            let links = find_links(&current_url, &document);
+
+            if depth != 0 {
+                depth -= 1;
+                for link in links {
+                    if !visited.contains(&link) {
+                        println!("{}", link);
+                        to_visit.push_back(link);
+                    }
+                }
+            } else {
+                for link in links {
+                    println!("{}", link);
                 }
             }
         }
