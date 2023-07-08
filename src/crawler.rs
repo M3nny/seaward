@@ -1,10 +1,33 @@
-use std::time::Duration;
+use std::time::{Instant, Duration};
 use scraper::{Html, Selector};
 use reqwest::blocking::Client;
 use reqwest::header::USER_AGENT;
 use colored::Colorize;
 use regex::Regex;
 use std::collections::{HashSet, VecDeque};
+
+fn get_timeout(base_url: &str, warmup: u32) -> u32 {
+    let client = Client::builder()
+        .user_agent(USER_AGENT)
+        .build()
+        .expect("Failed to build reqwest client");
+    let mut total_elapsed_time = Duration::new(0, 0);
+
+    for _ in 0..warmup {
+        let start_time = Instant::now();
+        let response = client.get(base_url).send();
+
+        if let Ok(response) = response {
+            if response.status().is_success() {
+                let elapsed_time = start_time.elapsed();
+                total_elapsed_time += elapsed_time;
+            }
+        }
+    }
+
+    let average_elapsed_time: u32 = (total_elapsed_time / warmup).as_millis().try_into().unwrap();
+    average_elapsed_time // Add an arabitrary value to avoid many requests timeouts
+}
 
 fn resolve_relative_url(base_url: &str, relative_url: &str) -> String {
     /*
@@ -55,12 +78,7 @@ fn find_links(base_url: &str, document: &Html) -> HashSet<String> {
     links
 }
 
-fn get_document(url: &str) -> Option<Html> {
-    let client = Client::builder()
-        .user_agent(USER_AGENT)
-        .timeout(Duration::from_secs(3))
-        .build()
-        .expect("Failed to build reqwest client");
+fn get_document(client: &Client, url: &str) -> Option<Html> {
     let response = client.get(url).send();
     match response {
         Ok(response) => {
@@ -82,14 +100,38 @@ fn get_document(url: &str) -> Option<Html> {
     }
 }
 
-pub fn crawl(url: &str, word: Option<&String>, depth: i32) {
+pub fn setup(url: &str, word: Option<&String>, arg_depth: Option<&u32>, arg_timeout: Option<&u32>, arg_warmup: Option<&u32>) {
+    let depth: i32;
+    let timeout: u32;
+
+    match arg_depth {
+        Some(d) => {depth = *d as i32},
+        None => {depth = -1}
+    }
+
+    match arg_warmup {
+        Some(w) => {timeout = get_timeout(url, *w)}
+        None => {
+            match arg_timeout {
+                Some(t) => {timeout = *t * 1000},
+                None => {timeout = 3000}
+            }
+        }
+    }
+
+    let client = Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_millis(timeout.into())) // TODO: cambiare di base a u64
+        .build()
+        .expect("Failed to build reqwest client");
+
     match word {
-        Some(w) => {crawl_word(url, w, depth)},
-        None => {crawl_url(url, depth)}
+        Some(w) => {crawl_word(&client, url, w, depth)},
+        None => {crawl_url(&client, url, depth)}
     }
 }
 
-fn crawl_word(url: &str, word: &str, mut depth: i32) {
+fn crawl_word(client: &Client, url: &str, word: &str, mut depth: i32) {
     let mut found_in_document: bool;
     let mut visited = HashSet::<String>::new();
     let mut to_visit = VecDeque::new();
@@ -104,7 +146,7 @@ fn crawl_word(url: &str, word: &str, mut depth: i32) {
         }
         visited.insert(current_url.clone());
 
-        if let Some(document) = get_document(&current_url) {
+        if let Some(document) = get_document(client, &current_url) {
             found_in_document = false;
             let links = find_links(&current_url, &document);
             let selectors = vec!["title", "text", "p", "h1", "h2", "h3", "h4", "h5", "h6"];
@@ -145,7 +187,7 @@ fn crawl_word(url: &str, word: &str, mut depth: i32) {
     }
 }
 
-fn crawl_url(url: &str, mut depth: i32) {
+fn crawl_url(client: &Client, url: &str, mut depth: i32) {
     let mut visited = HashSet::<String>::new();
     let mut to_visit = VecDeque::new();
 
@@ -157,7 +199,7 @@ fn crawl_url(url: &str, mut depth: i32) {
         }
         visited.insert(current_url.clone());
 
-        if let Some(document) = get_document(&current_url) {
+        if let Some(document) = get_document(client, &current_url) {
             let links = find_links(&current_url, &document);
 
             if depth != 0 {
