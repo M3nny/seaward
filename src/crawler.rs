@@ -189,7 +189,10 @@ fn crawl_url(client: &Client, url: &str, mut depth: i32) {
                 }
             } else {
                 for link in links {
-                    println!("{}", link);
+                    if !visited.contains(&link) {
+                        visited.insert(link.clone());
+                        println!("{}", link);
+                    }
                 }
             }
         }
