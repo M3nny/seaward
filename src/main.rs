@@ -15,7 +15,7 @@ fn main() {
         args.get_one::<String>("URL").unwrap(),
         args.get_one::<String>("WORD"),
         args.get_one::<u32>("DEPTH"),
-        args.get_one::<u32>("TIMEOUT"),
+        args.get_one::<u64>("TIMEOUT"),
         args.get_one::<u32>("WARMUP")
     );
 }

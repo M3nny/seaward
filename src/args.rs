@@ -26,7 +26,7 @@ pub fn get_args() -> ArgMatches{
         .arg(Arg::new("TIMEOUT")
             .short('t')
             .long("timeout")
-            .value_parser(value_parser!(u32))
+            .value_parser(value_parser!(u64))
             .help_heading("Timeout")
             .help("Set a request timeout")
             .long_help(
@@ -40,7 +40,7 @@ pub fn get_args() -> ArgMatches{
             .value_parser(value_parser!(u32))
             .help_heading("Timeout")
             .help("Set how many requests to make to find the best timeout automatically")
-            .long_help("An average of n requests timings is made, this can lead to many connection timeouts!")
+            .long_help("An average of n requests timings is made, this can lead to many connection timeouts! (overrides --timeout option)")
         )
         .get_matches();
     args
