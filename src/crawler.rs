@@ -1,6 +1,6 @@
 use std::time::Duration;
 use scraper::Selector;
-use reqwest::blocking::Client;
+use reqwest::Client;
 use clap::ArgMatches;
 use reqwest::header::USER_AGENT;
 use colored::Colorize;
@@ -8,7 +8,8 @@ use regex::Regex;
 use std::collections::{HashSet, VecDeque};
 use crate::utils::{get_timeout, find_links, get_document};
 
-pub fn setup(args: ArgMatches) {
+
+pub async fn setup(args: ArgMatches) {
     let depth: i32;
     let timeout: u64;
     let url = args.get_one::<String>("URL").unwrap();
@@ -19,7 +20,7 @@ pub fn setup(args: ArgMatches) {
     }
 
     match args.get_one::<u32>("WARMUP") {
-        Some(w) => {timeout = get_timeout(url, *w)}
+        Some(w) => {timeout = get_timeout(url, *w).await}
         None => {
             match args.get_one::<u64>("TIMEOUT") {
                 Some(t) => {timeout = *t * 1000},
@@ -35,12 +36,12 @@ pub fn setup(args: ArgMatches) {
         .expect("Failed to build reqwest client");
 
     match args.get_one::<String>("WORD") {
-        Some(w) => {crawl_word(&client, url, w, depth)},
-        None => {crawl_url(&client, url, depth)}
+        Some(w) => {crawl_word(&client, url, w, depth).await},
+        None => {crawl_url(&client, url, depth).await}
     }
 }
 
-fn crawl_word(client: &Client, url: &str, word: &str, mut depth: i32) {
+async fn crawl_word(client: &Client, url: &str, word: &str, mut depth: i32) {
     let mut found_in_document: bool;
     let mut visited = HashSet::<String>::new();
     let mut to_visit = VecDeque::new();
@@ -55,7 +56,8 @@ fn crawl_word(client: &Client, url: &str, word: &str, mut depth: i32) {
         }
         visited.insert(current_url.clone());
 
-        if let Some(document) = get_document(client, &current_url) {
+        if let Some(document) = get_document(client, &current_url).await {
+
             found_in_document = false;
             let links = find_links(&current_url, &document, &link_selectors);
             let selectors = vec!["title", "text", "p", "h1", "h2", "h3", "h4", "h5", "h6"];
@@ -96,7 +98,7 @@ fn crawl_word(client: &Client, url: &str, word: &str, mut depth: i32) {
     }
 }
 
-fn crawl_url(client: &Client, url: &str, mut depth: i32) {
+async fn crawl_url(client: &Client, url: &str, mut depth: i32) {
     let mut visited = HashSet::<String>::new();
     let mut to_visit = VecDeque::new();
 
@@ -109,22 +111,22 @@ fn crawl_url(client: &Client, url: &str, mut depth: i32) {
         }
         visited.insert(current_url.clone());
 
-        if let Some(document) = get_document(client, &current_url) {
+        if let Some(document) = get_document(client, &current_url).await {
             let links = find_links(&current_url, &document, &link_selectors);
 
             if depth != 0 {
                 depth -= 1;
                 for link in links {
-                    if !visited.contains(&link) {
+                    if !visited.contains(&link) && !to_visit.contains(&link)  {
                         println!("{}", link);
                         to_visit.push_back(link);
                     }
                 }
             } else {
                 for link in links {
-                    if !visited.contains(&link) {
-                        visited.insert(link.clone());
+                    if !visited.contains(&link) && !to_visit.contains(&link)  {
                         println!("{}", link);
+                        visited.insert(link.clone());
                     }
                 }
             }

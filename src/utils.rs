@@ -1,12 +1,12 @@
 use std::time::{Instant, Duration};
 use scraper::{Html, Selector};
-use reqwest::blocking::Client;
+use reqwest::Client;
 use reqwest::header::USER_AGENT;
 use reqwest::Url;
 use colored::Colorize;
 use std::collections::HashSet;
 
-pub fn get_timeout(base_url: &str, warmup: u32) -> u64 {
+pub async fn get_timeout(base_url: &str, warmup: u32) -> u64 {
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .build()
@@ -17,7 +17,7 @@ pub fn get_timeout(base_url: &str, warmup: u32) -> u64 {
         let start_time = Instant::now();
         let response = client.get(base_url).send();
 
-        if let Ok(response) = response {
+        if let Ok(response) = response.await {
             if response.status().is_success() {
                 let elapsed_time = start_time.elapsed();
                 total_elapsed_time += elapsed_time;
@@ -53,14 +53,14 @@ pub fn find_links(base_url: &str, document: &Html, selectors: &[&str]) -> HashSe
     links
 }
 
-pub fn get_document(client: &Client, url: &str) -> Option<Html> {
+pub async fn get_document(client: &Client, url: &str) -> Option<Html> {
     let response = client.get(url).send();
-    match response {
+    match response.await {
         Ok(response) => {
             if response.status().is_success() {
 
                 // get the page content as a string and then put it inside an HTML struct
-                let body = response.text().expect("Failed to get response body");
+                let body = response.text().await.expect("Failed to get response body");
                 let document = Html::parse_document(&body);
                 Some(document)
             } else {
