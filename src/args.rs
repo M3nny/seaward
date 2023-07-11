@@ -17,10 +17,7 @@ pub fn get_args() -> ArgMatches{
             .value_parser(value_parser!(u32))
             .help("Set how many times a link has to be followed")
             .long_help(
-                "By default the search is performed until there are no more internal links to visit.
-                0: only the base url is searched
-                1: the base url and its internal links are searched
-                ..."
+                "By default the search is performed until there are no more internal links to visit.\n0: only the base url is searched\n1: the base url and its internal links are searched\n..."
             )
         )
         .arg(Arg::new("TIMEOUT")
@@ -30,9 +27,7 @@ pub fn get_args() -> ArgMatches{
             .help_heading("Timeout")
             .help("Set a request timeout")
             .long_help(
-                "Set a request timeout.
-                low timeout: ignores long requests thus making the crawling faster
-                high timeout: higher probabilities of getting a response from every link, but decreasing the crawling speed with long requests"
+                "Set a request timeout.\nlow timeout: ignores long requests thus making the crawling faster\nhigh timeout: higher probabilities of getting a response from every link, but decreasing the crawling speed with long requests"
             )
         )
         .arg(Arg::new("WARMUP")
