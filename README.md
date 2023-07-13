@@ -6,6 +6,11 @@
 cargo install seaward
 ```
 
+On NetBSD a pre-compiled binary is available from the official repositories. To install it, simply run:
+``` console
+pkgin install seaward
+```
+
 ## Overview
 Seaward is used to discover every link on a web page (and its linked pages) without duplicates or to search for a word starting from the given URL.
 
