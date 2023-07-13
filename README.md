@@ -6,7 +6,6 @@
 cargo install seaward
 ```
 
-## NetBSD
 On NetBSD a pre-compiled binary is available from the official repositories. To install it, simply run:
 ``` console
 pkgin install seaward
