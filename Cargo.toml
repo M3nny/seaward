@@ -1,6 +1,12 @@
 [package]
 name = "seaward"
-version = "0.1.0"
+version = "0.1.0" #:version
+authors = ["M3nny"]
+description = "seaward is a crawler which searches for links or a specified word in a website."
+documentation = "https://github.com/M3nny/seaward"
+homepage = "https://github.com/M3nny/seaward"
+repository = "https://github.com/M3nny/seaward"
+keywords = ["cli", "web-crawler", "web-scraping", "rustcrawler"]
 edition = "2021"
 
 [dependencies]

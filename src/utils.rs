@@ -10,7 +10,7 @@ pub async fn get_timeout(base_url: &str, warmup: u32) -> u64 {
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .build()
-        .expect("Failed to build reqwest client");
+        .expect(&"Failed to build reqwest client".red());
     let mut total_elapsed_time = Duration::new(0, 0);
 
     for _ in 0..warmup {
@@ -31,10 +31,10 @@ pub async fn get_timeout(base_url: &str, warmup: u32) -> u64 {
 
 pub fn find_links(base_url: &str, document: &Html, selectors: &[&str]) -> HashSet<String> {
     let mut links = HashSet::new();
-    let base_url = Url::parse(base_url).expect("Failed to parse base URL");
+    let base_url = Url::parse(base_url).expect(&"Failed to parse base URL".red());
 
     for selector in selectors {
-        let element_selector = Selector::parse(selector).expect("Failed to parse selector");
+        let element_selector = Selector::parse(selector).expect(&"Failed to parse selector".red());
 
         for element in document.select(&element_selector) {
             if let Some(href) = element.value().attr("href") {
@@ -60,16 +60,16 @@ pub async fn get_document(client: &Client, url: &str) -> Option<Html> {
             if response.status().is_success() {
 
                 // get the page content as a string and then put it inside an HTML struct
-                let body = response.text().await.expect("Failed to get response body");
+                let body = response.text().await.expect(&"Failed to get response body".red());
                 let document = Html::parse_document(&body);
                 Some(document)
             } else {
-                println!("Request failed at {} with status code: {}", url.purple(), response.status());
+                println!("Request failed at {} with status code: {}", url, response.status().to_string().red());
                 None
             }
         }
         Err(err) => {
-            println!("Failed to send request: {}", err);
+            println!("Failed to send request: {}", err.to_string().red());
             None
         }
     }
