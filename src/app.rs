@@ -1,4 +1,4 @@
-use clap::{Arg, ArgMatches, ArgAction, Command, crate_version, value_parser};
+use clap::{Arg, ArgMatches, ArgAction, command, crate_version, value_parser};
 use::colored::Colorize;
 use std::time::Duration;
 use reqwest::Client;
@@ -20,7 +20,7 @@ Project home page: https://github.com/M3nny/seaward
 ";
 
 fn get_args() -> ArgMatches{
-    let args = Command::new("seaward")
+    let args = command!()
         .about(format!("seaward: {}\n{}", crate_version!(), ABOUT))
         .arg(Arg::new("URL")
             .required(true)
