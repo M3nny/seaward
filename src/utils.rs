@@ -6,27 +6,35 @@ use reqwest::Url;
 use colored::Colorize;
 use std::collections::HashSet;
 
-pub async fn get_timeout(base_url: &str, warmup: u32) -> u64 {
+pub async fn get_timeout(base_url: &str, warmup: u32, silent: bool) -> u64 {
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .build()
         .expect(&"Failed to build reqwest client".red());
-    let mut total_elapsed_time = Duration::new(0, 0);
 
-    for _ in 0..warmup {
-        let start_time = Instant::now();
+    let mut start_time: Instant;
+    let mut elapsed_time = Duration::new(0, 0);
+    let mut max_elapsed_time = Duration::new(0, 0);
+    for i in 0..warmup {
+        start_time = Instant::now();
         let response = client.get(base_url).send();
 
         if let Ok(response) = response.await {
             if response.status().is_success() {
-                let elapsed_time = start_time.elapsed();
-                total_elapsed_time += elapsed_time;
+                elapsed_time = start_time.elapsed();
+                max_elapsed_time = if elapsed_time > max_elapsed_time {elapsed_time} else {max_elapsed_time};
+            }
+            if !silent {
+                println!("- Request({}/{}): {:?}", i+1, warmup, elapsed_time);
             }
         }
+
     }
 
-    let average_elapsed_time: u64 = (total_elapsed_time / warmup).as_millis() as u64;
-    average_elapsed_time
+    if !silent {
+        println!("Using a timeout of: {:?}ms\n", (max_elapsed_time.as_millis() as u64) + 100);
+    }
+    max_elapsed_time.as_millis() as u64 + 100
 }
 
 pub fn find_links(base_url: &str, document: &Html, selectors: &[&str]) -> HashSet<String> {

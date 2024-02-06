@@ -19,7 +19,7 @@ Use -h for short descriptions and --help for more details.
 Project home page: https://github.com/M3nny/seaward
 ";
 
-fn get_args() -> ArgMatches{
+fn get_args() -> ArgMatches {
     let args = command!()
         .about(format!("seaward: {}\n{}", crate_version!(), ABOUT))
         .arg(Arg::new("URL")
@@ -45,9 +45,9 @@ fn get_args() -> ArgMatches{
             .long("timeout")
             .value_parser(value_parser!(u64))
             .help_heading("Timeout")
-            .help("Set a request timeout in seconds (default: 3s).")
+            .help("Set a request timeout in milliseconds (default: 3000ms).")
             .long_help(
-                "Set a request timeout.\nlow timeout: ignores long requests thus making the crawling faster\nhigh timeout: higher probabilities of getting a response from every link, but decreasing the crawling speed with long requests"
+                "Set a request timeout in milliseconds (default: 3000ms)\nlow timeout: ignores long requests thus making the crawling faster\nhigh timeout: higher probabilities of getting a response from every link, but decreasing the crawling speed with long requests"
             )
         )
         .arg(Arg::new("WARMUP")
@@ -83,10 +83,10 @@ pub async fn setup() {
     }
 
     match args.get_one::<u32>("WARMUP") {
-        Some(w) => {timeout = get_timeout(url, *w).await}
+        Some(w) => {timeout = get_timeout(url, *w, args.get_flag("SILENT")).await}
         None => {
             match args.get_one::<u64>("TIMEOUT") {
-                Some(t) => {timeout = *t * 1000},
+                Some(t) => {timeout = *t},
                 None => {timeout = 3000}
             }
         }
