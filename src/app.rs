@@ -2,7 +2,6 @@ use clap::{Arg, ArgMatches, ArgAction, command, crate_version, value_parser};
 use::colored::Colorize;
 use std::time::Duration;
 use reqwest::Client;
-use reqwest::header::USER_AGENT;
 use crate::utils::get_timeout;
 use crate::crawler::{crawl_url, crawl_word};
 
@@ -93,7 +92,7 @@ pub async fn setup() {
     }
 
     let client = Client::builder()
-        .user_agent(USER_AGENT)
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0")
         .timeout(Duration::from_millis(timeout))
         .build()
         .expect(&"Failed to build reqwest client".red());
