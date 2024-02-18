@@ -5,7 +5,7 @@ use regex::Regex;
 use std::collections::{HashSet, VecDeque};
 use crate::utils::{find_links, get_document};
 
-pub async fn crawl_word(client: &Client, url: &str, word: &str, mut depth: i32) {
+pub async fn crawl_word(client: &Client, url: &str, word: &str, mut depth: i32, strict: bool) {
     let mut found_in_document: bool;
     let mut visited = HashSet::<String>::new();
     let mut to_visit = VecDeque::new();
@@ -23,7 +23,7 @@ pub async fn crawl_word(client: &Client, url: &str, word: &str, mut depth: i32) 
         if let Some(document) = get_document(client, &current_url).await {
 
             found_in_document = false;
-            let links = find_links(&current_url, &document, &link_selectors);
+            let links = find_links(&current_url, &document, &link_selectors, strict);
             let selectors = vec!["title", "text", "p", "h1", "h2", "h3", "h4", "h5", "h6"];
 
             for selector in selectors {
@@ -62,7 +62,7 @@ pub async fn crawl_word(client: &Client, url: &str, word: &str, mut depth: i32) 
     }
 }
 
-pub async fn crawl_url(client: &Client, url: &str, mut depth: i32) {
+pub async fn crawl_url(client: &Client, url: &str, mut depth: i32, strict: bool) {
     let mut visited = HashSet::<String>::new();
     let mut to_visit = VecDeque::new();
 
@@ -76,7 +76,7 @@ pub async fn crawl_url(client: &Client, url: &str, mut depth: i32) {
         visited.insert(current_url.clone());
 
         if let Some(document) = get_document(client, &current_url).await {
-            let links = find_links(&current_url, &document, &link_selectors);
+            let links = find_links(&current_url, &document, &link_selectors, strict);
 
             if depth != 0 {
                 depth -= 1;

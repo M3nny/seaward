@@ -46,7 +46,7 @@ fn get_args() -> ArgMatches {
             .help_heading("Timeout")
             .help("Set a request timeout in milliseconds (default: 3000ms).")
             .long_help(
-                "Set a request timeout in milliseconds (default: 3000ms)\nlow timeout: ignores long requests thus making the crawling faster\nhigh timeout: higher probabilities of getting a response from every link, but decreasing the crawling speed with long requests"
+                "Set a request timeout in milliseconds (default: 3000ms)\nlow timeout: ignores long requests thus making the crawling faster\nhigh timeout: higher probabilities of getting a response from every link, but decreasing the crawling speed with long requests."
             )
         )
         .arg(Arg::new("WARMUP")
@@ -54,7 +54,13 @@ fn get_args() -> ArgMatches {
             .value_parser(value_parser!(u32))
             .help_heading("Timeout")
             .help("Set how many requests to make to find the best timeout automatically.")
-            .long_help("An average of n requests timings is made, this can lead to many connection timeouts! (overrides --timeout option)")
+            .long_help("An average of n requests timings is made, this can lead to many connection timeouts! (overrides --timeout option).")
+        )
+        .arg(Arg::new("STRICT")
+            .long("strict")
+            .action(ArgAction::SetTrue)
+            .help("Crawl the links only if they are subpaths of the base url.")
+            .long_help("Crawl the links only if they are subpaths of the base url.\ne.g. base_url: https://example.com/sub/\nhttps://example.com/sub/file/ will be followed\nhttps://example.com/sub2/ will NOT be followed.")
         )
         .arg(Arg::new("SILENT")
             .long("silent")
@@ -98,7 +104,7 @@ pub async fn setup() {
         .expect(&"Failed to build reqwest client".red());
 
     match args.get_one::<String>("WORD") {
-        Some(w) => {crawl_word(&client, url, w, depth).await},
-        None => {crawl_url(&client, url, depth).await}
+        Some(w) => {crawl_word(&client, url, w, depth, args.get_flag("STRICT")).await},
+        None => {crawl_url(&client, url, depth, args.get_flag("STRICT")).await}
     }
 }

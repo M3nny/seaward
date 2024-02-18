@@ -36,7 +36,17 @@ pub async fn get_timeout(base_url: &str, warmup: u32, silent: bool) -> u64 {
     max_elapsed_time.as_millis() as u64 + 100
 }
 
-pub fn find_links(base_url: &str, document: &Html, selectors: &[&str]) -> HashSet<String> {
+fn is_subfolder(base_url: &Url, url: &Url) -> bool {
+    let base_path = base_url.path();
+    let url_path = url.path();
+
+    url_path
+        .get(..base_path.len())
+        .map(|url_prefix| url_prefix == base_path)
+        .unwrap_or(false)
+}
+
+pub fn find_links(base_url: &str, document: &Html, selectors: &[&str], strict: bool) -> HashSet<String> {
     let mut links = HashSet::new();
     let base_url = Url::parse(base_url).expect(&"Failed to parse base URL".red());
 
@@ -56,7 +66,13 @@ pub fn find_links(base_url: &str, document: &Html, selectors: &[&str]) -> HashSe
                     if let Some(domain) = url.domain() {
                         if let Some(base_domain) = base_url.domain() {
                             if domain.ends_with(base_domain) { // check whether the link is internal to the website
-                                links.insert(url.to_string());
+                                if strict {
+                                    if is_subfolder(&base_url, &url) {
+                                        links.insert(url.to_string());
+                                    }
+                                } else {
+                                    links.insert(url.to_string());
+                                }
                             }
                         }
                     }
