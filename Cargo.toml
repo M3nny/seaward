@@ -1,6 +1,6 @@
 [package]
 name = "seaward"
-version = "1.0.2" #:version
+version = "1.0.3" #:version
 authors = ["M3nny"]
 description = "seaward is a crawler which searches for links or a specified word in a website."
 documentation = "https://github.com/M3nny/seaward"
