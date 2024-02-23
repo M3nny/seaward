@@ -2,14 +2,25 @@ mod app;
 mod crawler;
 mod utils;
 
-use crate::app::setup;
+use app::setup;
+use tokio::signal::ctrl_c;
+use colored::Colorize;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() {
-    ctrlc::set_handler(move || {
-        println!("\nshutting down... received KeyboardInterrupt");
+    tokio::spawn(async {
+        setup().await;
         std::process::exit(0);
-    }).expect("Error setting KeyboardInterrupt handler");
+    });
 
-    setup().await;
+    match ctrl_c().await {
+        Ok(_) => {
+            println!("\n[{}] Shutting down: received KeyboardInterrupt", "INFO".green());
+            std::process::exit(0);
+        }
+        Err(err) => {
+            eprintln!("\n[{}] Unable to listen for shutdown signal: {}", "FATAL".red(), err);
+            std::process::exit(0);
+        }
+    }
 }

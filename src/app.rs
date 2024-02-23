@@ -1,9 +1,9 @@
-use clap::{Arg, ArgMatches, ArgAction, command, crate_version, value_parser};
-use::colored::Colorize;
-use std::time::Duration;
-use reqwest::Client;
-use crate::utils::get_timeout;
 use crate::crawler::{crawl_url, crawl_word};
+use crate::utils::get_timeout;
+use colored::Colorize;
+use clap::{command, crate_version, value_parser, Arg, ArgAction, ArgMatches};
+use reqwest::Client;
+use std::time::Duration;
 
 const BANNER: &str = "
                              _
@@ -83,28 +83,26 @@ pub async fn setup() {
     let url = args.get_one::<String>("URL").unwrap();
 
     match args.get_one::<u32>("DEPTH") {
-        Some(d) => {depth = *d as i32},
-        None => {depth = -1} // -1 is being used for the "indefinite" crawl
+        Some(d) => depth = *d as i32,
+        None => depth = -1, // -1 is being used for the "indefinite" crawl
     }
 
     match args.get_one::<u32>("WARMUP") {
-        Some(w) => {timeout = get_timeout(url, *w, args.get_flag("SILENT")).await}
-        None => {
-            match args.get_one::<u64>("TIMEOUT") {
-                Some(t) => {timeout = *t},
-                None => {timeout = 3000}
-            }
-        }
+        Some(w) => timeout = get_timeout(url, *w, args.get_flag("SILENT")).await,
+        None => match args.get_one::<u64>("TIMEOUT") {
+            Some(t) => timeout = *t,
+            None => timeout = 3000,
+        },
     }
 
     let client = Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0")
         .timeout(Duration::from_millis(timeout))
         .build()
-        .expect(&"Failed to build reqwest client".red());
+        .expect(&format!("\n[{}] Failed to build reqwest client" , "FATAL".red()));
 
     match args.get_one::<String>("WORD") {
-        Some(w) => {crawl_word(&client, url, w, depth, args.get_flag("STRICT")).await},
-        None => {crawl_url(&client, url, depth, args.get_flag("STRICT")).await}
+        Some(w) => crawl_word(&client, url, w, depth, args.get_flag("STRICT")).await,
+        None => crawl_url(&client, url, depth, args.get_flag("STRICT")).await,
     }
 }

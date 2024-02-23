@@ -12,10 +12,9 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
-tokio = {version = "1.29.1", features = ["macros"]}
+tokio = {version = "1.29.1", features = ["macros", "rt", "signal", "rt-multi-thread"]}
 clap = {version = "4.3.11", features = ["cargo"]}
 reqwest = "0.11"
 scraper = "0.17"
 colored = "2.0"
 regex = "1.0"
-ctrlc = "3.4.0"
