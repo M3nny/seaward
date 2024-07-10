@@ -11,7 +11,7 @@ On NetBSD a pre-compiled binary is available from the official repositories. To 
 pkgin install seaward
 ```
 
-An Alpine Linux package is also available in the `testing` repository:
+An Alpine Linux package is also available in the `community` repository:
 ``` console
 apk add seaward
 ```
