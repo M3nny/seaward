@@ -12,9 +12,25 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
-tokio = {version = "1.29.1", features = ["macros", "rt", "signal", "rt-multi-thread"]}
-clap = {version = "4.3.11", features = ["cargo"]}
-reqwest = "0.11"
-scraper = "0.17"
-colored = "2.0"
-regex = "1.0"
+tokio = {version = "1.45.0", features = ["macros", "rt", "signal", "rt-multi-thread"]}
+clap = {version = "4.5.38", features = ["cargo", "derive"]}
+reqwest = "0.12.5"
+scraper = "0.23.1"
+colored = "3.0.0"
+regex = "1.11.1"
+
+# use 'cargo build'
+# for the development unoptimized build
+[profile.dev]
+panic = "unwind"   # clean the stack on panic and produce a backtrace
+incremental = true # enable incremental build
+
+
+# use 'cargo build --release --no-default-features'
+# for the optimized release build
+[profile.release]
+panic = "unwind"    # clean the stack on panic and produce a backtrace
+incremental = false # build from scratch every time
+strip = true        # strip symbols from the binary
+lto = true          # link time optimizations (remove dead code)
+codegen-units = 1   # use a single code generation unit

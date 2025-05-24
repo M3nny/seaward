@@ -1,26 +1,32 @@
-mod app;
-mod crawler;
-mod utils;
+pub mod app;
+pub mod config;
+pub mod log;
 
-use app::setup;
+use app::{core::crawl, errors::AppError};
+use config::setup;
 use tokio::signal::ctrl_c;
-use colored::Colorize;
+
+async fn run() -> Result<(), AppError> {
+    let (args, client) = setup().await?;
+
+    tokio::select! {
+        biased;
+
+        _ = ctrl_c() => {
+            info!("Shutting down: received keyboard interrupt");
+        },
+        _ = async {
+            crawl(&args, &client).await?;
+            Ok::<(), AppError>(())
+        } => {}
+    }
+
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() {
-    tokio::spawn(async {
-        setup().await;
-        std::process::exit(0);
-    });
-
-    match ctrl_c().await {
-        Ok(_) => {
-            println!("\n[{}] Shutting down: received KeyboardInterrupt", "INFO".green());
-            std::process::exit(0);
-        }
-        Err(err) => {
-            eprintln!("\n[{}] Unable to listen for shutdown signal: {}", "FATAL".red(), err);
-            std::process::exit(0);
-        }
+    if let Err(err) = run().await {
+        error!("{}", err);
     }
 }
