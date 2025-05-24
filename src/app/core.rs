@@ -3,6 +3,7 @@ use crate::{
     config::Args, warn,
 };
 use colored::Colorize;
+use fastbloom::BloomFilter;
 use regex::{Regex, RegexBuilder};
 use reqwest::{Client, Url};
 use scraper::{Html, Selector};
@@ -111,7 +112,7 @@ fn print_matches(url: &String, regex: &Regex, matches: &Vec<&str>) {
 }
 
 pub async fn crawl(args: &Args, client: &Client) -> Result<(), AppError> {
-    let mut visited = HashSet::<String>::new();
+    let mut visited = BloomFilter::with_false_pos(0.001).expected_items(1000);
     let mut to_visit = VecDeque::<QueueItem>::from([QueueItem(args.url.clone(), 1)]);
 
     let link_selectors: Vec<Selector> = args
@@ -145,7 +146,7 @@ pub async fn crawl(args: &Args, client: &Client) -> Result<(), AppError> {
             continue;
         }
 
-        visited.insert(current_url.clone());
+        visited.insert(&current_url);
 
         if let Ok(document) = get_document(&client, &current_url).await {
             let matches: Vec<&str> = find_matches(&word_selectors, &regex, &document);

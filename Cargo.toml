@@ -18,6 +18,7 @@ reqwest = "0.12.5"
 scraper = "0.23.1"
 colored = "3.0.0"
 regex = "1.11.1"
+fastbloom = "0.11.0"
 
 # use 'cargo build'
 # for the development unoptimized build
