@@ -6,6 +6,7 @@ use app::{core::crawl, errors::AppError};
 use config::setup;
 use tokio::signal::ctrl_c;
 
+/// Listens for a keyboard interrupt while crawling.
 async fn run() -> Result<(), AppError> {
     let (args, client) = setup().await?;
 

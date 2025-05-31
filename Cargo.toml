@@ -1,6 +1,6 @@
 [package]
 name = "seaward"
-version = "1.0.3" #:version
+version = "1.0.3"
 authors = ["M3nny"]
 description = "seaward is a crawler which searches for links or a specified word in a website."
 documentation = "https://github.com/M3nny/seaward"
@@ -9,7 +9,7 @@ repository = "https://github.com/M3nny/seaward"
 keywords = ["cli", "web-crawler", "web-scraping", "rustcrawler"]
 categories = ["command-line-utilities"]
 license = "MIT"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 tokio = {version = "1.45.0", features = ["macros", "rt", "signal", "rt-multi-thread"]}
@@ -19,6 +19,7 @@ scraper = "0.23.1"
 colored = "3.0.0"
 regex = "1.11.1"
 fastbloom = "0.11.0"
+rayon = "1.10"
 
 # use 'cargo build'
 # for the development unoptimized build

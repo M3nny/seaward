@@ -1,3 +1,5 @@
+//! App configuration and cli args parsing.
+
 use crate::{app::errors::AppError, info};
 use clap::{command, crate_version, Parser};
 use colored::Colorize;
@@ -17,6 +19,7 @@ Use -h for short descriptions and --help for more details.
 Project home page: https://github.com/M3nny/seaward
 ";
 
+/// Contains the args specified via cli.
 #[derive(Clone, Parser)]
 #[command(
     name = "seaward",
@@ -106,6 +109,8 @@ pub struct Args {
     pub silent: bool,
 }
 
+/// Gets a greedy timeout estimation by returning the longest request time summed to an extra
+/// delay.
 pub async fn get_timeout(args: &Args) -> u64 {
     let warmup_client = Client::builder()
         .user_agent(&args.user_agent)
@@ -146,10 +151,15 @@ pub async fn get_timeout(args: &Args) -> u64 {
     greedy_timeout
 }
 
+/// Prints app ascii logo.
 fn print_banner() {
     println!("{} v: {}\n", BANNER, crate_version!());
 }
 
+/// Sets up the app config.
+///
+/// # Returns
+/// A struct containing the cli arguments.
 pub async fn setup() -> Result<(Args, Client), AppError> {
     let mut args = Args::parse();
 

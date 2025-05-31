@@ -1,5 +1,9 @@
+//! Struct used for mapping various libraries errors.
+
 use core::fmt;
 
+/// Contains a message to be displayed in case the app terminates prematurely
+/// (or for debugging purposes).
 #[derive(Debug)]
 pub struct AppError {
     pub msg: String,

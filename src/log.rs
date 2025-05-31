@@ -1,8 +1,9 @@
-use std::fmt;
+//! Log enum.
 
+use std::fmt;
 use colored::Colorize;
 
-/// Enum used to display messages with their correspondant log level
+/// Enum used to display messages with their correspondant log level.
 pub enum LogLevel {
     Info,
     Warn,
@@ -12,14 +13,15 @@ pub enum LogLevel {
 impl fmt::Display for LogLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            LogLevel::Info => "[INFO]".bold().cyan(),
-            LogLevel::Warn => "[WARN]".bold().yellow(),
-            LogLevel::Error => "[ERROR]".bold().red(),
+            LogLevel::Info => "[INFO]".cyan(),
+            LogLevel::Warn => "[WARN]".yellow(),
+            LogLevel::Error => "[ERROR]".red(),
         };
         write!(f, "{}", s)
     }
 }
 
+/// Prints a string specifying an info log level.
 #[macro_export]
 macro_rules! info {
     ($($arg:tt)*) => {
@@ -27,6 +29,7 @@ macro_rules! info {
     };
 }
 
+/// Prints a string specifying a warn log level.
 #[macro_export]
 macro_rules! warn {
     ($($arg:tt)*) => {
@@ -34,6 +37,7 @@ macro_rules! warn {
     };
 }
 
+/// Prints a string specifying an error log level.
 #[macro_export]
 macro_rules! error {
     ($($arg:tt)*) => {
