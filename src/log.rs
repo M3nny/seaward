@@ -1,7 +1,7 @@
 //! Log enum.
 
-use std::fmt;
 use colored::Colorize;
+use std::fmt;
 
 /// Enum used to display messages with their correspondant log level.
 pub enum LogLevel {

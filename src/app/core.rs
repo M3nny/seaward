@@ -1,180 +1,59 @@
 //! Core methods.
 
 use crate::{
-    app::{errors::AppError, queue_item::QueueItem},
-    config::Args,
-    warn,
+    app::{
+        crawl_result::CrawlResult,
+        errors::AppError,
+        queue_item::QueueItem,
+        state::AppState,
+        utils::{find_links_in_document, find_matches, get_document, print_matches},
+    },
+    info,
 };
-use colored::Colorize;
 use fastbloom::BloomFilter;
-use rayon::prelude::*;
-use regex::{Regex, RegexBuilder};
-use reqwest::{Client, Url};
-use scraper::{Html, Selector};
-use std::collections::{HashSet, VecDeque};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+};
+use tokio::{signal::ctrl_c, sync::mpsc, task::JoinSet};
 
-/// Check if a given url is a subpath of  another one.
-///
-/// # Parameters
-/// - `base_url`: url that may contain the specified subpath.
-/// - `url`: subpath to be checked against the base url.
-///
-/// # Returns
-/// A boolean which tells if `url` is a subpath of `base_url`.
-fn is_subpath(base_url: &Url, url: &Url) -> bool {
-    let base_path = base_url.path();
-    let url_path = url.path();
-
-    url_path
-        .get(..base_path.len())
-        .map(|url_prefix| url_prefix == base_path)
-        .unwrap_or(false)
-}
-
-/// Find internal links in the current document looking inside the specified html selectors.
-///
-/// # Parameters
-/// - `base_url`: url used to check if the link is internal to the crawled website.
-/// - `document`: html document to be parsed in search of links.
-/// - `selectors`: html selectors that specifies in which tags to search for links.
-/// - `strict`: if set to true, the collected links must be a subpath of the base url.
-///
-/// # Returns
-/// Internal links defined inside of the provided `selectors` in the given html `document`.
-fn find_links_in_document(
-    base_url: &str,
-    document: &Html,
-    selectors: &Vec<Selector>,
-    strict: bool,
-) -> Result<HashSet<String>, AppError> {
-    let parsed_base_url = Url::parse(base_url)
-        .map_err(|err| AppError::new(format!("Error while parsing url: {}", err)))?;
-
-    let is_url_valid = |url: &Url| -> bool {
-        match (url.domain(), parsed_base_url.domain()) {
-            (Some(domain), Some(base_domain)) => {
-                // if strict is set to true then check if the url is a subpath
-                domain.ends_with(base_domain) && (!strict || is_subpath(&parsed_base_url, url))
-            }
-            _ => false,
-        }
-    };
-
-    let resolve_href = |href: &str| -> Option<Url> {
-        parsed_base_url.join(href).ok().map(|mut url| {
-            url.set_fragment(None);
-            url
-        })
-    };
-
-    let links: HashSet<String> = selectors
-        .iter()
-        .flat_map(|selector| document.select(selector))
-        .filter_map(|element| element.value().attr("href"))
-        .collect::<Vec<&str>>()
-        .into_par_iter()
-        .filter_map(resolve_href)
-        .filter(is_url_valid)
-        .map(|url| url.to_string())
-        .collect::<HashSet<String>>();
-
-    Ok(links)
-}
-
-/// Retrieves an html document by makes a get http request to a given url.
-///
-/// # Parameters
-/// - `client`: http client used for making the request.
-/// - `url`: url used for making the request.
-///
-/// # Returns
-/// The html document returned by the http request.
-async fn get_document(client: &Client, url: &str) -> Result<Html, AppError> {
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|err| AppError::new(format!("Error while fetching document: {}", err)))?;
-
-    let body = if response.status().is_success() {
-        response
-            .text()
-            .await
-            .map_err(|err| AppError::new(format!("Failed to read body: {}", err)))?
-    } else {
-        return Err(AppError::new(format!(
-            "Response failed with status code: {}",
-            response.status().to_string()
-        )));
-    };
-
-    Ok(Html::parse_document(&body))
-}
-
-/// Finds the strings that match the given regex inside of the provided selectors.
-///
-/// # Parameters
-/// - `selectors`: html selectors that specifies in which tags to search for the regex.
-/// - `regex`: represents the searched word/phrase inside of the website.
-/// - `document`: html document to be parsed in search of regex matchesk.
-///
-/// # Returns
-/// The `regex` matches inside of the `document`.
-fn find_matches<'a>(
-    selectors: &[Selector],
-    regex: &Regex,
-    document: &'a Html,
-) -> Vec<&'a str> {
-    let texts: Vec<&'a str> = selectors
-        .iter()
-        .flat_map(|selector| document.select(selector).flat_map(|element| element.text()))
-        .collect();
-
-    texts
-        .into_par_iter()
-        .filter(|text| regex.is_match(text))
-        .collect()
-}
-
-/// Pretty prints the regex matches.
-///
-/// # Parameters
-/// - `url`: the url which contains the printed matches.
-/// - `regex`: used to highlight the searched word/phrase.
-/// - `matches`: vector of strings that include the searched word/phrase.
-fn print_matches(url: &String, regex: &Regex, matches: &Vec<&str>) {
-    if !matches.is_empty() {
-        println!("{}", url.blue());
-
-        matches.iter().for_each(|word| {
-            println!(
-                "{}",
-                regex.replace_all(word, |captures: &regex::Captures| captures[0]
-                    .cyan()
-                    .bold()
-                    .to_string())
-            )
-        });
-
-        println!();
+/// Process a single url and return the result.
+async fn process_url(
+    state: Arc<AppState>,
+    url: &String,
+    depth: u32,
+) -> Result<CrawlResult, AppError> {
+    if state.cancel_token.is_cancelled() {
+        return Err(AppError::cancelled());
     }
-}
 
-/// Parses the given string representation of html selectors and returns the correspective
-/// selectors.
-///
-/// # Parameters
-/// - `tags`: string repsentation of the html selectors.
-///
-/// # Returns
-/// Selectors that corresponds to the given string representation.
-fn parse_selectors(tags: &Vec<String>) -> Result<Vec<Selector>, AppError> {
-    tags.into_iter()
-        .map(|s| {
-            Selector::parse(&s)
-                .map_err(|err| AppError::new(format!("Failed to parse selector: {}", err)))
-        })
-        .collect()
+    let mut result = CrawlResult {
+        depth,
+        links: Vec::new(),
+    };
+
+    let document = get_document(&state.client, &url).await?;
+
+    let matches: Vec<&str> = find_matches(&state.word_selectors, &state.regex, &document);
+
+    if state.cancel_token.is_cancelled() {
+        return Err(AppError::cancelled());
+    } else {
+        print_matches(&url, &state.regex, &matches);
+    }
+
+    // extract links if we haven't reached max depth
+    if state.args.depth == 0 || depth < state.args.depth {
+        let links = find_links_in_document(
+            &state.args.url,
+            &document,
+            &state.link_selectors,
+            state.args.strict,
+        )?;
+        result.links = links.into_iter().collect();
+    }
+
+    Ok(result)
 }
 
 /// Crawl entry point.
@@ -182,44 +61,75 @@ fn parse_selectors(tags: &Vec<String>) -> Result<Vec<Selector>, AppError> {
 /// # Parameters
 /// `args`: provided cli args.
 /// `client`: http client that does all the requests.
-pub async fn crawl(args: &Args, client: &Client) -> Result<(), AppError> {
-    let mut visited = BloomFilter::with_false_pos(0.001).expected_items(1000);
-    let mut to_visit = VecDeque::<QueueItem>::from([QueueItem(args.url.clone(), 1)]);
+pub async fn crawl(state: Arc<AppState>) -> Result<(), AppError> {
+    let visited = Arc::new(Mutex::new(
+        BloomFilter::with_false_pos(0.001).expected_items(1000),
+    ));
+    let mut to_visit = VecDeque::<QueueItem>::from([QueueItem(state.args.url.clone(), 1)]);
 
-    let link_selectors: Vec<Selector> = parse_selectors(&args.link_tags)?;
-    let word_selectors: Vec<Selector> = parse_selectors(&args.word_tags)?;
+    let (tx, mut rx) = mpsc::unbounded_channel::<Result<CrawlResult, AppError>>();
+    let mut active_tasks = JoinSet::new();
+    let mut pending_results = 0;
 
-    let pattern = format!(r"\b{}\b", regex::escape(&args.word));
-    let regex = RegexBuilder::new(&pattern)
-        .case_insensitive(args.case_insensitive)
-        .build()
-        .map_err(|err| AppError::new(format!("Failed to create regex: {}", err)))?;
+    loop {
+        while active_tasks.len() < state.args.concurrency && !to_visit.is_empty() {
+            if let Some(QueueItem(current_url, current_depth)) = to_visit.pop_front() {
+                // Critical section:
+                // after acquiring the mutex, the memership of current_url is checked against the
+                // bloom filter, and if it's not statisfied, the url is added to the queue.
+                //
+                // The mutex is dropped when it goes out of scope.
+                {
+                    let mut visited_guard = visited.lock().unwrap();
+                    visited_guard.insert(&current_url);
+                }
 
-    while let Some(QueueItem(current_url, current_depth)) = to_visit.pop_front() {
-        if visited.contains(&current_url) {
-            continue;
+                // spawn task
+                let state_clone = state.clone();
+                let tx_clone = tx.clone();
+
+                active_tasks.spawn(async move {
+                    let crawl_result = process_url(state_clone, &current_url, current_depth).await;
+                    let _ = tx_clone.send(crawl_result);
+                });
+
+                pending_results += 1;
+            }
         }
 
-        visited.insert(&current_url);
+        // exit the crawl loop if the are no active tasks or pending results
+        if active_tasks.is_empty() && pending_results == 0 {
+            break;
+        }
 
-        if let Ok(document) = get_document(&client, &current_url).await {
-            let matches: Vec<&str> = find_matches(&word_selectors, &regex, &document);
-            print_matches(&current_url, &regex, &matches);
+        tokio::select! {
+            biased;
 
-            if args.depth == 0 || current_depth < args.depth {
-                if let Ok(links) =
-                    find_links_in_document(&args.url, &document, &link_selectors, args.strict)
-                {
-                    links
-                        .into_iter()
-                        .filter(|link| !visited.contains(link))
-                        .for_each(|link| to_visit.push_back(QueueItem(link, current_depth + 1)));
-                } else {
-                    warn!("Failed to extract links from {}", current_url);
+            _ = ctrl_c() => {
+                state.cancel_token.cancel();
+                info!("Shutting down: received keyboard interrupt");
+                break;
+            }
+
+            Some(_) = active_tasks.join_next() => {}
+
+            Some(crawl_result) = rx.recv() => {
+                pending_results -= 1;
+
+                if let Ok(crawl_result) = crawl_result {
+                    let visited_guard = visited.lock().unwrap();
+                    for link in crawl_result.links {
+                        if !visited_guard.contains(&link) {
+                            to_visit.push_back(QueueItem(link, crawl_result.depth + 1));
+                        }
+                    }
                 }
             }
         }
     }
+
+    active_tasks.abort_all();
+    while rx.try_recv().is_ok() {}
 
     Ok(())
 }

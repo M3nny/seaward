@@ -10,8 +10,14 @@ pub struct AppError {
 }
 
 impl AppError {
-    pub fn new(msg: impl Into<String>) -> AppError {
-        AppError { msg: msg.into() }
+    pub fn new(msg: impl Into<String>) -> Self {
+        Self { msg: msg.into() }
+    }
+
+    pub fn cancelled() -> Self {
+        Self {
+            msg: "Task cancelled by user".to_string(),
+        }
     }
 }
 

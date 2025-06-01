@@ -1,10 +1,20 @@
 //! App configuration and cli args parsing.
 
-use crate::{app::errors::AppError, info};
-use clap::{command, crate_version, Parser};
+use crate::{
+    app::{errors::AppError, state::AppState},
+    info,
+};
+use clap::{Parser, command, crate_version};
 use colored::Colorize;
+use regex::{Regex, RegexBuilder};
 use reqwest::Client;
-use std::time::{Duration, Instant};
+use scraper::Selector;
+use std::{
+    num::NonZeroUsize,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio_util::sync::CancellationToken;
 
 const BANNER: &str = "
                              _
@@ -105,6 +115,14 @@ pub struct Args {
     )]
     pub case_insensitive: bool,
 
+    #[arg(
+        short = 'c',
+        long = "concurrency",
+        default_value_t = get_available_parallelism(),
+        help = "Max number of concurrent tasks to be executed",
+    )]
+    pub concurrency: usize,
+
     #[arg(long = "silent", action = clap::ArgAction::SetTrue, default_value_t = false, help = "Display output only.")]
     pub silent: bool,
 }
@@ -151,16 +169,60 @@ pub async fn get_timeout(args: &Args) -> u64 {
     greedy_timeout
 }
 
+fn get_available_parallelism() -> usize {
+    let default_parallelism: NonZeroUsize = NonZeroUsize::new(4).unwrap();
+
+    std::thread::available_parallelism()
+        .unwrap_or(default_parallelism)
+        .get()
+}
+
 /// Prints app ascii logo.
 fn print_banner() {
     println!("{} v: {}\n", BANNER, crate_version!());
+}
+
+/// Parses the given string representation of html selectors and returns the corresponding
+/// selectors.
+///
+/// # Parameters
+/// - `tags`: string representation of the html selectors.
+///
+/// # Returns
+/// Selectors that corresponds to the given string representation.
+pub fn parse_selectors(tags: &Vec<String>) -> Result<Vec<Selector>, AppError> {
+    tags.into_iter()
+        .map(|s| {
+            Selector::parse(&s)
+                .map_err(|err| AppError::new(format!("Failed to parse selector: {}", err)))
+        })
+        .collect()
+}
+
+fn get_shared_state(args: &Args, client: &Client) -> Result<Arc<AppState>, AppError> {
+    let pattern = format!(r"\b{}\b", regex::escape(&args.word));
+    let regex: Regex = RegexBuilder::new(&pattern)
+        .case_insensitive(args.case_insensitive)
+        .build()
+        .map_err(|err| AppError::new(format!("Failed to create regex: {}", err)))?;
+
+    let cancel_token = CancellationToken::new();
+
+    Ok(Arc::new(AppState::new(
+        client.clone(),
+        args.clone(),
+        parse_selectors(&args.link_tags)?,
+        parse_selectors(&args.word_tags)?,
+        regex.clone(),
+        cancel_token,
+    )))
 }
 
 /// Sets up the app config.
 ///
 /// # Returns
 /// A struct containing the cli arguments.
-pub async fn setup() -> Result<(Args, Client), AppError> {
+pub async fn setup() -> Result<Arc<AppState>, AppError> {
     let mut args = Args::parse();
 
     if !args.silent {
@@ -177,5 +239,5 @@ pub async fn setup() -> Result<(Args, Client), AppError> {
         .build()
         .map_err(|err| AppError::new(err.to_string()))?;
 
-    Ok((args.clone(), client))
+    Ok(get_shared_state(&args, &client)?)
 }
