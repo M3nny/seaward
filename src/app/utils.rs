@@ -1,6 +1,6 @@
 //! Utils methods used by core.
 
-use crate::app::errors::AppError;
+use crate::structs::errors::AppError;
 use colored::Colorize;
 use rayon::prelude::*;
 use regex::Regex;
@@ -36,7 +36,7 @@ pub fn is_subpath(base_url: &Url, url: &Url) -> bool {
 ///
 /// # Returns
 /// Internal links defined inside of the provided `selectors` in the given html `document`.
-pub fn find_links_in_document(
+pub fn find_links_in_document<'a>(
     base_url: &str,
     document: &Html,
     selectors: &[Selector],
@@ -115,10 +115,11 @@ pub async fn get_document(client: &Client, url: &str) -> Result<Html, AppError> 
 ///
 /// # Returns
 /// The `regex` matches inside of the `document`.
-pub fn find_matches<'a>(selectors: &[Selector], regex: &Regex, document: &'a Html) -> Vec<&'a str> {
-    let texts: Vec<&'a str> = selectors
+pub fn find_matches(selectors: &[Selector], regex: &Regex, document: &Html) -> Vec<String> {
+    let texts: Vec<String> = selectors
         .iter()
         .flat_map(|selector| document.select(selector).flat_map(|element| element.text()))
+        .map(|text| text.to_string())
         .collect();
 
     texts
@@ -133,7 +134,7 @@ pub fn find_matches<'a>(selectors: &[Selector], regex: &Regex, document: &'a Htm
 /// - `url`: the url which contains the printed matches.
 /// - `regex`: used to highlight the searched word/phrase.
 /// - `matches`: vector of strings that include the searched word/phrase.
-pub fn print_matches(url: &String, regex: &Regex, matches: &Vec<&str>) {
+pub fn print_matches(url: &str, regex: &Regex, matches: &Vec<&str>) {
     if !matches.is_empty() {
         println!("{}", url.blue());
 

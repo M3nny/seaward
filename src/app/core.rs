@@ -1,56 +1,44 @@
 //! Core methods.
 
 use crate::{
-    app::{
-        crawl_result::CrawlResult,
-        errors::AppError,
-        queue_item::QueueItem,
-        state::AppState,
-        utils::{find_links_in_document, find_matches, get_document, print_matches},
-    },
+    app::utils::{find_links_in_document, find_matches, get_document, print_matches},
     info,
+    structs::{
+        crawl_result::CrawlResult, errors::AppError, queue_item::QueueItem, state::AppState,
+    },
 };
 use fastbloom::BloomFilter;
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     sync::{Arc, Mutex},
 };
 use tokio::{signal::ctrl_c, sync::mpsc, task::JoinSet};
 
 /// Process a single url and return the result.
-async fn process_url(
-    state: Arc<AppState>,
-    url: &String,
-    depth: u32,
-) -> Result<CrawlResult, AppError> {
+async fn process_url(state: Arc<AppState>, url: &str, depth: u32) -> Result<CrawlResult, AppError> {
     if state.cancel_token.is_cancelled() {
         return Err(AppError::cancelled());
     }
 
     let mut result = CrawlResult {
+        url: url.to_string(),
         depth,
-        links: Vec::new(),
+        links: HashSet::new(),
+        matches: Vec::new(),
     };
 
     let document = get_document(&state.client, &url).await?;
 
-    let matches: Vec<&str> = find_matches(&state.word_selectors, &state.regex, &document);
-
-    if state.cancel_token.is_cancelled() {
-        return Err(AppError::cancelled());
-    } else {
-        print_matches(&url, &state.regex, &matches);
-    }
+    result.matches = find_matches(&state.word_selectors, &state.regex, &document);
 
     // extract links if we haven't reached max depth
     if state.args.depth == 0 || depth < state.args.depth {
-        let links = find_links_in_document(
+        result.links = find_links_in_document(
             &state.args.url,
             &document,
             &state.link_selectors,
             state.args.strict,
         )?;
-        result.links = links.into_iter().collect();
     }
 
     Ok(result)
@@ -117,6 +105,8 @@ pub async fn crawl(state: Arc<AppState>) -> Result<(), AppError> {
                 pending_results -= 1;
 
                 if let Ok(crawl_result) = crawl_result {
+                    let matches_str: Vec<&str> = crawl_result.matches.iter().map(|m| m.as_str()).collect();
+                    print_matches(crawl_result.url.as_str(), &state.regex, &matches_str);
                     let visited_guard = visited.lock().unwrap();
                     for link in crawl_result.links {
                         if !visited_guard.contains(&link) {

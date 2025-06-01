@@ -1,8 +1,8 @@
 //! App configuration and cli args parsing.
 
 use crate::{
-    app::{errors::AppError, state::AppState},
     info,
+    structs::{errors::AppError, state::AppState},
 };
 use clap::{Parser, command, crate_version};
 use colored::Colorize;

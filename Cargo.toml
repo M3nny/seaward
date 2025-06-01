@@ -14,13 +14,13 @@ edition = "2024"
 [dependencies]
 tokio = {version = "1.45.0", features = ["macros", "rt", "signal", "rt-multi-thread"]}
 clap = {version = "4.5.38", features = ["cargo", "derive"]}
-reqwest = "0.12.5"
-scraper = "0.23.1"
-colored = "3.0.0"
-regex = "1.11.1"
-fastbloom = "0.11.0"
-rayon = "1.10"
-tokio-util = "0.7.15"
+reqwest = {version = "0.12.5"}
+regex = {version = "1.11.1"}
+scraper = {version = "0.23.1", default-features = false}
+colored = {version = "3.0.0", default-features = false}
+fastbloom = {version = "0.11.0", default-features = false}
+rayon = {version = "1.10", default-features = false}
+tokio-util = {version = "0.7.15", default-features = false}
 
 # use 'cargo build'
 # for the development unoptimized build
