@@ -1,6 +1,6 @@
 [package]
 name = "seaward"
-version = "1.0.3"
+version = "1.1.0"
 authors = ["M3nny"]
 description = "seaward is a crawler which searches for links or a specified word in a website."
 documentation = "https://github.com/M3nny/seaward"
@@ -12,7 +12,7 @@ license = "MIT"
 edition = "2024"
 
 [dependencies]
-tokio = {version = "1.45.0", features = ["macros", "rt", "signal", "rt-multi-thread"]}
+tokio = {version = "1.45.0", features = ["macros", "signal", "rt-multi-thread"]}
 clap = {version = "4.5.38", features = ["cargo", "derive"]}
 reqwest = {version = "0.12.5"}
 regex = {version = "1.11.1"}

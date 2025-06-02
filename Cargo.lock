@@ -1348,7 +1348,7 @@ dependencies = [
 
 [[package]]
 name = "seaward"
-version = "1.0.3"
+version = "1.1.0"
 dependencies = [
  "clap",
  "colored",
