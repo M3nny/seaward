@@ -99,7 +99,7 @@ pub async fn get_document(client: &Client, url: &str) -> Result<Html, AppError> 
     } else {
         return Err(app_error!(
             "Response failed with status code: {}",
-            response.status().to_string()
+            response.status()
         ));
     };
 

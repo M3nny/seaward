@@ -107,7 +107,7 @@ fn spawn_tasks(
 /// - `state`: shared state across multiple tasks.
 pub async fn crawl(state: Arc<AppState>) -> Result<(), AppError> {
     let visited = Arc::new(Mutex::new(
-        BloomFilter::with_false_pos(0.001).expected_items(1000),
+        BloomFilter::with_false_pos(state.args.false_positive_rate).expected_items(state.args.expected_items),
     ));
     let mut to_visit = VecDeque::<QueueItem>::from([QueueItem(state.args.url.clone(), 1)]);
 

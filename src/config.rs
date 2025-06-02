@@ -21,6 +21,8 @@ const BANNER: &str = "
 |_ -| -_| .'| | | | .'|  _| . |
 |___|___|__,|_____|__,|_| |___|";
 
+const APP_NAME: &str = "seaward";
+
 const ABOUT: &str = "
 seaward is a crawler which searches for links or a specified word in a website.
 Use -h for short descriptions and --help for more details.
@@ -28,12 +30,22 @@ Use -h for short descriptions and --help for more details.
 Project home page: https://github.com/M3nny/seaward
 ";
 
+const HELP_TEMPLATE: &str = "
+{name} {version}
+{about}
+
+{usage-heading} {usage}
+
+{all-args}
+";
+
 /// Contains the arguments passed to the app via cli.
 #[derive(Clone, Parser)]
 #[command(
-    name = "seaward",
+    name = APP_NAME,
     version = crate_version!(),
-    about = format!("seaward: {}\n{}", crate_version!(), ABOUT)
+    about = ABOUT,
+    help_template = HELP_TEMPLATE
 )]
 pub struct Args {
     /// Base URL used to start crawling.
@@ -59,8 +71,8 @@ pub struct Args {
         long = "timeout",
         value_parser = clap::value_parser!(u64),
         default_value_t = 3000,
-        help = "Set a request timeout in milliseconds (default: 3000ms).",
-        long_help = "Set a request timeout in milliseconds (default: 3000ms)\nlow timeout: ignores long requests thus making the crawling faster\nhigh timeout: higher probabilities of getting a response from every link, but decreasing the crawling speed with long requests."
+        help = "Set a request timeout in milliseconds.",
+        long_help = "Set a request timeout in milliseconds.\nLow timeout: ignores long requests thus making the crawling faster.\nHigh timeout: higher probabilities of getting a response from every link, but decreasing the crawling speed with long requests."
     )]
     pub timeout: u64,
 
@@ -89,7 +101,7 @@ pub struct Args {
     #[arg(
         long = "user-agent",
         default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
-        help = "Set the user agent used for making the requests"
+        help = "Set the user agent used for making the requests."
     )]
     pub user_agent: String,
 
@@ -99,7 +111,7 @@ pub struct Args {
         value_delimiter = ',',
         num_args = 1..,
         default_value = "a[href]",
-        help = "Set the html tags to consider for exploring new links (default: a[href])"
+        help = "Set the html tags to consider for exploring new links."
     )]
     pub link_tags: Vec<String>,
 
@@ -109,7 +121,7 @@ pub struct Args {
         value_delimiter = ',',
         num_args = 1..,
         default_value = "title,text,p,h1,h2,h3,h4,h5,h6",
-        help = "Set the HTML tags to consider when matching the given word (default: title, text, p, h1...h6)"
+        help = "Set the HTML tags to consider when matching the given word."
     )]
     pub word_tags: Vec<String>,
 
@@ -119,7 +131,7 @@ pub struct Args {
         long = "ignore-case",
         action = clap::ArgAction::SetTrue,
         default_value_t = false,
-        help = "Ignore case sensitivity",
+        help = "Ignore case sensitivity.",
     )]
     pub case_insensitive: bool,
 
@@ -128,9 +140,26 @@ pub struct Args {
         short = 'c',
         long = "concurrency",
         default_value_t = get_available_parallelism(),
-        help = "Max number of concurrent tasks to be executed",
+        help = "Max number of concurrent tasks to be executed.",
     )]
     pub concurrency: usize,
+
+    /// Number of expected urls to be visited during the crawl.
+    #[arg(
+        long = "expected-items",
+        default_value_t = 10000,
+        help = "Number of expected urls to be visited during the crawl.",
+        long_help = "Number of expected urls to be visited during the crawl.\nThis is used to set the bloom filter size."
+    )]
+    pub expected_items: usize,
+
+    /// False positive rate of the bloom filter.
+    #[arg(
+        long = "false-positive-rate",
+        default_value_t = 0.001,
+        help = "Set the false positive rate of the bloom filter, a small rate will cause the bloom filter to be bigger.",
+    )]
+    pub false_positive_rate: f64,
 
     /// Flag used to avoid priting some information.
     #[arg(long = "silent", action = clap::ArgAction::SetTrue, default_value_t = false, help = "Display output only.")]
