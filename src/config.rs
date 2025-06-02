@@ -1,0 +1,286 @@
+//! App configuration and cli args parsing.
+
+use crate::{
+    app_error, info,
+    structs::{error::AppError, state::AppState},
+};
+use clap::{Parser, command, crate_version};
+use regex::{Regex, RegexBuilder};
+use reqwest::Client;
+use scraper::Selector;
+use std::{
+    num::NonZeroUsize,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio_util::sync::CancellationToken;
+
+const BANNER: &str = "
+                             _
+ ___ ___ ___ _ _ _ ___ ___ _| |
+|_ -| -_| .'| | | | .'|  _| . |
+|___|___|__,|_____|__,|_| |___|";
+
+const APP_NAME: &str = "seaward";
+
+const ABOUT: &str = "
+seaward is a grep-like tool for the web.
+Use -h for short descriptions and --help for more details.
+
+Project home page: https://github.com/M3nny/seaward
+";
+
+const HELP_TEMPLATE: &str = "
+{name} {version}
+{about}
+
+{usage-heading} {usage}
+
+{all-args}
+";
+
+/// Contains the arguments passed to the app via cli.
+#[derive(Clone, Parser)]
+#[command(
+    name = APP_NAME,
+    version = crate_version!(),
+    about = ABOUT,
+    help_template = HELP_TEMPLATE
+)]
+pub struct Args {
+    /// Base URL used to start crawling.
+    #[arg(help = "Base URL used to start crawling.")]
+    pub url: String,
+
+    /// Word to search in the website.
+    #[arg(short = 'w', long = "word", help = "Word to search in the website.")]
+    pub word: String,
+
+    #[arg(
+        short = 'd',
+        long = "depth",
+        value_parser = clap::value_parser!(u32),
+        default_value_t = 0,
+        help = "Set the crawl depth.",
+        long_help = "Set the crawl depth.\nSetting the depth to 0 will crawl the entire website."
+    )]
+    pub depth: u32,
+
+    /// Request timeout in milliseconds.
+    #[arg(
+        short = 't',
+        long = "timeout",
+        value_parser = clap::value_parser!(u64),
+        default_value_t = 3000,
+        help = "Set a request timeout in milliseconds.",
+        long_help = "Set a request timeout in milliseconds.\nLow timeout: ignores long requests thus making the crawling faster.\nHigh timeout: higher probabilities of getting a response from every link, but decreasing the crawling speed with long requests."
+    )]
+    pub timeout: u64,
+
+    /// Requests to be made to find the best timeout automatically.
+    #[arg(
+        long = "warmup",
+        value_parser = clap::value_parser!(u32),
+        default_value_t = 0,
+        help = "Set how many requests to make to find the best timeout automatically.",
+        long_help = "An average of n requests timings is made, this can lead to many connection timeouts! (overrides --timeout option)."
+    )]
+    pub warmup_requests: u32,
+
+    /// Flag used to crawl only the links that are subpaths of the base url.
+    #[arg(
+        short = 's',
+        long = "strict",
+        action = clap::ArgAction::SetTrue,
+        default_value_t = false,
+        help = "Crawl the links only if they are subpaths of the base url.",
+        long_help = "Crawl the links only if they are subpaths of the base url.\ne.g. base_url: https://example.com/sub/\nhttps://example.com/sub/file/ will be followed\nhttps://example.com/sub2/ will NOT be followed."
+    )]
+    pub strict: bool,
+
+    /// User agent used for making the requests.
+    #[arg(
+        long = "user-agent",
+        default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
+        help = "Set the user agent used for making the requests."
+    )]
+    pub user_agent: String,
+
+    /// Html link selectors.
+    #[arg(
+        long = "link-selectors",
+        value_delimiter = ',',
+        num_args = 1..,
+        default_value = "a[href]",
+        help = "Set the html tags to consider for exploring new links."
+    )]
+    pub link_tags: Vec<String>,
+
+    /// Html word selectors.
+    #[arg(
+        long = "word-selectors",
+        value_delimiter = ',',
+        num_args = 1..,
+        default_value = "title,text,p,h1,h2,h3,h4,h5,h6",
+        help = "Set the HTML tags to consider when matching the given word."
+    )]
+    pub word_tags: Vec<String>,
+
+    /// Flag used to determine if the searched word is case insensitive.
+    #[arg(
+        short = 'i',
+        long = "ignore-case",
+        action = clap::ArgAction::SetTrue,
+        default_value_t = false,
+        help = "Ignore case sensitivity.",
+    )]
+    pub case_insensitive: bool,
+
+    /// Max number of concurrent tasks.
+    #[arg(
+        short = 'c',
+        long = "concurrency",
+        default_value_t = get_available_parallelism(),
+        help = "Max number of concurrent tasks to be executed.",
+    )]
+    pub concurrency: usize,
+
+    /// Number of expected urls to be visited during the crawl.
+    #[arg(
+        long = "expected-items",
+        default_value_t = 10000,
+        help = "Number of expected urls to be visited during the crawl.",
+        long_help = "Number of expected urls to be visited during the crawl.\nThis is used to set the bloom filter size."
+    )]
+    pub expected_items: usize,
+
+    /// False positive rate of the bloom filter.
+    #[arg(
+        long = "false-positive-rate",
+        default_value_t = 0.001,
+        help = "Set the false positive rate of the bloom filter, a small rate will cause the bloom filter to be bigger.",
+    )]
+    pub false_positive_rate: f64,
+
+    /// Flag used to avoid priting some information.
+    #[arg(long = "silent", action = clap::ArgAction::SetTrue, default_value_t = false, help = "Display output only.")]
+    pub silent: bool,
+}
+
+/// Gets a greedy timeout estimation by returning the longest request time summed to an extra
+/// delay.
+///
+/// # Parameters
+/// - `args`: arguments passed to the app via cli.
+///
+/// # Returns
+/// A timeout estimation.
+pub async fn get_timeout(args: &Args) -> Result<u64, AppError> {
+    let warmup_client = Client::builder()
+        .user_agent(&args.user_agent)
+        .build()
+        .map_err(|err| app_error!("Failed to build reqwest client: {}", err))
+        .unwrap();
+
+    let mut max_elapsed_time = Duration::new(0, 0);
+
+    for i in 0..args.warmup_requests {
+        let start_time = Instant::now();
+
+        if let Ok(response) = warmup_client.get(&args.url).send().await {
+            if response.status().is_success() {
+                max_elapsed_time = if start_time.elapsed() > max_elapsed_time {
+                    start_time.elapsed()
+                } else {
+                    max_elapsed_time
+                };
+            }
+
+            if args.silent {
+                info!(
+                    "Request({}/{}): {:?}",
+                    i + 1,
+                    args.warmup_requests,
+                    start_time.elapsed()
+                );
+            }
+        }
+    }
+
+    let greedy_timeout = (max_elapsed_time.as_millis() as u64) + 1000;
+    info!("Using a timeout of: {}ms", greedy_timeout);
+
+    Ok(greedy_timeout)
+}
+
+/// Gets the available parallelism, this often corresponds to the number of cpu cores.
+fn get_available_parallelism() -> usize {
+    let default_parallelism: NonZeroUsize = NonZeroUsize::new(4).unwrap();
+
+    std::thread::available_parallelism()
+        .unwrap_or(default_parallelism)
+        .get()
+}
+
+/// Prints app ascii logo.
+fn print_banner() {
+    println!("{} v: {}\n", BANNER, crate_version!());
+}
+
+/// Parses the given string representation of html selectors and returns the corresponding
+/// selectors.
+///
+/// # Parameters
+/// - `tags`: string representation of the html selectors.
+///
+/// # Returns
+/// Selectors that corresponds to the given string representation.
+fn parse_selectors(tags: &Vec<String>) -> Result<Vec<Selector>, AppError> {
+    tags.into_iter()
+        .map(|s| Selector::parse(&s).map_err(|err| app_error!("Failed to parse selector: {}", err)))
+        .collect()
+}
+
+fn get_shared_state(args: &Args, client: &Client) -> Result<Arc<AppState>, AppError> {
+    let pattern = format!(r"\b{}\b", regex::escape(&args.word));
+    let regex: Regex = RegexBuilder::new(&pattern)
+        .case_insensitive(args.case_insensitive)
+        .build()
+        .map_err(|err| app_error!("Failed to create regex: {}", err))?;
+
+    let cancel_token = CancellationToken::new();
+
+    Ok(Arc::new(AppState::new(
+        client.clone(),
+        args.clone(),
+        parse_selectors(&args.link_tags)?,
+        parse_selectors(&args.word_tags)?,
+        regex.clone(),
+        cancel_token,
+    )))
+}
+
+/// Sets up the app config.
+///
+/// # Returns
+/// A struct containing the shared app state.
+pub async fn setup() -> Result<Arc<AppState>, AppError> {
+    let mut args = Args::parse();
+
+    if !args.silent {
+        print_banner();
+    }
+
+    if args.warmup_requests > 0 {
+        args.timeout = get_timeout(&args).await?;
+    }
+
+    let client = Client::builder()
+        .user_agent(&args.user_agent)
+        .timeout(Duration::from_millis(args.timeout))
+        .build()
+        .map_err(|err| app_error!("Failed to build reqwest client: {}", err))
+        .unwrap();
+
+    Ok(get_shared_state(&args, &client)?)
+}

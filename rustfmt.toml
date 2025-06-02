@@ -1,0 +1,2 @@
+# Automatically groups imports, only available in rust nightly
+imports_granularity = "Crate"
