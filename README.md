@@ -27,5 +27,4 @@ To search for a case insensitive word/phrase in a website, use:
 seaward <url> -w <word> -i
 ```
 
-### Examples
-![Example_crawl](assets/seaward.gif)
+![seaward_demo](assets/seaward_demo.gif)
