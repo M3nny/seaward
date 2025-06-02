@@ -141,7 +141,7 @@ pub struct Args {
 /// delay.
 ///
 /// # Parameters
-/// `args`: arguments passed to the app via cli.
+/// - `args`: arguments passed to the app via cli.
 ///
 /// # Returns
 /// A timeout estimation.
