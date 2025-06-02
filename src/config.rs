@@ -24,7 +24,7 @@ const BANNER: &str = "
 const APP_NAME: &str = "seaward";
 
 const ABOUT: &str = "
-seaward is a crawler which searches for links or a specified word in a website.
+seaward is a grep-like tool for the web.
 Use -h for short descriptions and --help for more details.
 
 Project home page: https://github.com/M3nny/seaward
@@ -60,8 +60,9 @@ pub struct Args {
         short = 'd',
         long = "depth",
         value_parser = clap::value_parser!(u32),
-        default_value_t = 100,
-        help = "Set the crawl depth."
+        default_value_t = 0,
+        help = "Set the crawl depth.",
+        long_help = "Set the crawl depth.\nSetting the depth to 0 will crawl the entire website."
     )]
     pub depth: u32,
 
