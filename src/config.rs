@@ -1,11 +1,10 @@
 //! App configuration and cli args parsing.
 
 use crate::{
-    info,
-    structs::{errors::AppError, state::AppState},
+    app_error, info,
+    structs::{error::AppError, state::AppState},
 };
 use clap::{Parser, command, crate_version};
-use colored::Colorize;
 use regex::{Regex, RegexBuilder};
 use reqwest::Client;
 use scraper::Selector;
@@ -29,7 +28,7 @@ Use -h for short descriptions and --help for more details.
 Project home page: https://github.com/M3nny/seaward
 ";
 
-/// Contains the args specified via cli.
+/// Contains the arguments passed to the app via cli.
 #[derive(Clone, Parser)]
 #[command(
     name = "seaward",
@@ -37,10 +36,12 @@ Project home page: https://github.com/M3nny/seaward
     about = format!("seaward: {}\n{}", crate_version!(), ABOUT)
 )]
 pub struct Args {
+    /// Base URL used to start crawling.
     #[arg(help = "Base URL used to start crawling.")]
     pub url: String,
 
-    #[arg(short = 'w', long = "word", help = "Case insensitive word to search.")]
+    /// Word to search in the website.
+    #[arg(short = 'w', long = "word", help = "Word to search in the website.")]
     pub word: String,
 
     #[arg(
@@ -52,6 +53,7 @@ pub struct Args {
     )]
     pub depth: u32,
 
+    /// Request timeout in milliseconds.
     #[arg(
         short = 't',
         long = "timeout",
@@ -62,6 +64,7 @@ pub struct Args {
     )]
     pub timeout: u64,
 
+    /// Requests to be made to find the best timeout automatically.
     #[arg(
         long = "warmup",
         value_parser = clap::value_parser!(u32),
@@ -71,6 +74,7 @@ pub struct Args {
     )]
     pub warmup_requests: u32,
 
+    /// Flag used to crawl only the links that are subpaths of the base url.
     #[arg(
         short = 's',
         long = "strict",
@@ -81,6 +85,7 @@ pub struct Args {
     )]
     pub strict: bool,
 
+    /// User agent used for making the requests.
     #[arg(
         long = "user-agent",
         default_value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
@@ -88,6 +93,7 @@ pub struct Args {
     )]
     pub user_agent: String,
 
+    /// Html link selectors.
     #[arg(
         long = "link-selectors",
         value_delimiter = ',',
@@ -97,6 +103,7 @@ pub struct Args {
     )]
     pub link_tags: Vec<String>,
 
+    /// Html word selectors.
     #[arg(
         long = "word-selectors",
         value_delimiter = ',',
@@ -106,6 +113,7 @@ pub struct Args {
     )]
     pub word_tags: Vec<String>,
 
+    /// Flag used to determine if the searched word is case insensitive.
     #[arg(
         short = 'i',
         long = "ignore-case",
@@ -115,6 +123,7 @@ pub struct Args {
     )]
     pub case_insensitive: bool,
 
+    /// Max number of concurrent tasks.
     #[arg(
         short = 'c',
         long = "concurrency",
@@ -123,20 +132,25 @@ pub struct Args {
     )]
     pub concurrency: usize,
 
+    /// Flag used to avoid priting some information.
     #[arg(long = "silent", action = clap::ArgAction::SetTrue, default_value_t = false, help = "Display output only.")]
     pub silent: bool,
 }
 
 /// Gets a greedy timeout estimation by returning the longest request time summed to an extra
 /// delay.
-pub async fn get_timeout(args: &Args) -> u64 {
+///
+/// # Parameters
+/// `args`: arguments passed to the app via cli.
+///
+/// # Returns
+/// A timeout estimation.
+pub async fn get_timeout(args: &Args) -> Result<u64, AppError> {
     let warmup_client = Client::builder()
         .user_agent(&args.user_agent)
         .build()
-        .expect(&format!(
-            "\n[{}] Failed to build reqwest client",
-            "FATAL".red()
-        ));
+        .map_err(|err| app_error!("Failed to build reqwest client: {}", err))
+        .unwrap();
 
     let mut max_elapsed_time = Duration::new(0, 0);
 
@@ -166,9 +180,10 @@ pub async fn get_timeout(args: &Args) -> u64 {
     let greedy_timeout = (max_elapsed_time.as_millis() as u64) + 1000;
     info!("Using a timeout of: {}ms", greedy_timeout);
 
-    greedy_timeout
+    Ok(greedy_timeout)
 }
 
+/// Gets the available parallelism, this often corresponds to the number of cpu cores.
 fn get_available_parallelism() -> usize {
     let default_parallelism: NonZeroUsize = NonZeroUsize::new(4).unwrap();
 
@@ -190,12 +205,9 @@ fn print_banner() {
 ///
 /// # Returns
 /// Selectors that corresponds to the given string representation.
-pub fn parse_selectors(tags: &Vec<String>) -> Result<Vec<Selector>, AppError> {
+fn parse_selectors(tags: &Vec<String>) -> Result<Vec<Selector>, AppError> {
     tags.into_iter()
-        .map(|s| {
-            Selector::parse(&s)
-                .map_err(|err| AppError::new(format!("Failed to parse selector: {}", err)))
-        })
+        .map(|s| Selector::parse(&s).map_err(|err| app_error!("Failed to parse selector: {}", err)))
         .collect()
 }
 
@@ -204,7 +216,7 @@ fn get_shared_state(args: &Args, client: &Client) -> Result<Arc<AppState>, AppEr
     let regex: Regex = RegexBuilder::new(&pattern)
         .case_insensitive(args.case_insensitive)
         .build()
-        .map_err(|err| AppError::new(format!("Failed to create regex: {}", err)))?;
+        .map_err(|err| app_error!("Failed to create regex: {}", err))?;
 
     let cancel_token = CancellationToken::new();
 
@@ -221,7 +233,7 @@ fn get_shared_state(args: &Args, client: &Client) -> Result<Arc<AppState>, AppEr
 /// Sets up the app config.
 ///
 /// # Returns
-/// A struct containing the cli arguments.
+/// A struct containing the shared app state.
 pub async fn setup() -> Result<Arc<AppState>, AppError> {
     let mut args = Args::parse();
 
@@ -230,14 +242,15 @@ pub async fn setup() -> Result<Arc<AppState>, AppError> {
     }
 
     if args.warmup_requests > 0 {
-        args.timeout = get_timeout(&args).await;
+        args.timeout = get_timeout(&args).await?;
     }
 
     let client = Client::builder()
         .user_agent(&args.user_agent)
         .timeout(Duration::from_millis(args.timeout))
         .build()
-        .map_err(|err| AppError::new(err.to_string()))?;
+        .map_err(|err| app_error!("Failed to build reqwest client: {}", err))
+        .unwrap();
 
     Ok(get_shared_state(&args, &client)?)
 }

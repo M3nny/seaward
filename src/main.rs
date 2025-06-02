@@ -6,7 +6,7 @@ pub mod structs;
 use app::core::crawl;
 use config::setup;
 use enums::log;
-use structs::errors::AppError;
+use structs::error::AppError;
 
 /// Listens for a keyboard interrupt while crawling.
 async fn run() -> Result<(), AppError> {

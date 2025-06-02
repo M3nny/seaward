@@ -10,8 +10,10 @@ pub struct AppError {
 }
 
 impl AppError {
-    pub fn new(msg: impl Into<String>) -> Self {
-        Self { msg: msg.into() }
+    pub fn new(msg: fmt::Arguments) -> Self {
+        Self {
+            msg: msg.to_string(),
+        }
     }
 
     pub fn cancelled() -> Self {
@@ -25,4 +27,12 @@ impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.msg)
     }
+}
+
+/// Simplifies the struct creation.
+#[macro_export]
+macro_rules! app_error {
+    ($($arg:tt)*) => {
+        AppError::new(format_args!($($arg)*))
+    };
 }

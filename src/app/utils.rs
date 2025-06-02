@@ -1,6 +1,6 @@
 //! Utils methods used by core.
 
-use crate::structs::errors::AppError;
+use crate::{app_error, structs::error::AppError};
 use colored::Colorize;
 use rayon::prelude::*;
 use regex::Regex;
@@ -42,8 +42,8 @@ pub fn find_links_in_document<'a>(
     selectors: &[Selector],
     strict: bool,
 ) -> Result<HashSet<String>, AppError> {
-    let parsed_base_url = Url::parse(base_url)
-        .map_err(|err| AppError::new(format!("Error while parsing url: {}", err)))?;
+    let parsed_base_url =
+        Url::parse(base_url).map_err(|err| app_error!("Error while parsing url: {}", err))?;
 
     let is_url_valid = |url: &Url| -> bool {
         match (url.domain(), parsed_base_url.domain()) {
@@ -89,18 +89,18 @@ pub async fn get_document(client: &Client, url: &str) -> Result<Html, AppError> 
         .get(url)
         .send()
         .await
-        .map_err(|err| AppError::new(format!("Error while fetching document: {}", err)))?;
+        .map_err(|err| app_error!("Error while fetching document: {}", err))?;
 
     let body = if response.status().is_success() {
         response
             .text()
             .await
-            .map_err(|err| AppError::new(format!("Failed to read body: {}", err)))?
+            .map_err(|err| app_error!("Failed to read body: {}", err))?
     } else {
-        return Err(AppError::new(format!(
+        return Err(app_error!(
             "Response failed with status code: {}",
             response.status().to_string()
-        )));
+        ));
     };
 
     Ok(Html::parse_document(&body))
@@ -134,7 +134,7 @@ pub fn find_matches(selectors: &[Selector], regex: &Regex, document: &Html) -> V
 /// - `url`: the url which contains the printed matches.
 /// - `regex`: used to highlight the searched word/phrase.
 /// - `matches`: vector of strings that include the searched word/phrase.
-pub fn print_matches(url: &str, regex: &Regex, matches: &Vec<&str>) {
+pub fn print_matches(url: &str, regex: &Regex, matches: &Vec<String>) {
     if !matches.is_empty() {
         println!("{}", url.blue());
 

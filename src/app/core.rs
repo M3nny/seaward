@@ -3,9 +3,7 @@
 use crate::{
     app::utils::{find_links_in_document, find_matches, get_document, print_matches},
     info,
-    structs::{
-        crawl_result::CrawlResult, errors::AppError, queue_item::QueueItem, state::AppState,
-    },
+    structs::{crawl_result::CrawlResult, error::AppError, queue_item::QueueItem, state::AppState},
 };
 use fastbloom::BloomFilter;
 use std::{
@@ -15,6 +13,11 @@ use std::{
 use tokio::{signal::ctrl_c, sync::mpsc, task::JoinSet};
 
 /// Process a single url and return the result.
+///
+/// # Parameters
+/// - `state`: shared state across multiple tasks.
+/// - `url`: url to be crawled.
+/// - `depth`: `url` distance relative to the starting url.
 async fn process_url(state: Arc<AppState>, url: &str, depth: u32) -> Result<CrawlResult, AppError> {
     if state.cancel_token.is_cancelled() {
         return Err(AppError::cancelled());
@@ -47,8 +50,7 @@ async fn process_url(state: Arc<AppState>, url: &str, depth: u32) -> Result<Craw
 /// Crawl entry point.
 ///
 /// # Parameters
-/// `args`: provided cli args.
-/// `client`: http client that does all the requests.
+/// `state`: shared state across multiple tasks.
 pub async fn crawl(state: Arc<AppState>) -> Result<(), AppError> {
     let visited = Arc::new(Mutex::new(
         BloomFilter::with_false_pos(0.001).expected_items(1000),
@@ -105,14 +107,13 @@ pub async fn crawl(state: Arc<AppState>) -> Result<(), AppError> {
                 pending_results -= 1;
 
                 if let Ok(crawl_result) = crawl_result {
-                    let matches_str: Vec<&str> = crawl_result.matches.iter().map(|m| m.as_str()).collect();
-                    print_matches(crawl_result.url.as_str(), &state.regex, &matches_str);
+                    print_matches(crawl_result.url.as_str(), &state.regex, &crawl_result.matches);
                     let visited_guard = visited.lock().unwrap();
-                    for link in crawl_result.links {
+                    crawl_result.links.iter().for_each(|link| {
                         if !visited_guard.contains(&link) {
-                            to_visit.push_back(QueueItem(link, crawl_result.depth + 1));
+                            to_visit.push_back(QueueItem(link.to_string(), crawl_result.depth + 1));
                         }
-                    }
+                    });
                 }
             }
         }

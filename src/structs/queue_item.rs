@@ -1,6 +1,10 @@
-//! Data type store inside of the crawling queue.
+//! Data type stored inside of the crawling queue.
 
-/// Contains a string representing thr url to be visited and the depth reltive to the root url.
+/// Items pushed inside of the crawling queue.
+///
+/// # Parameters
+/// - `String`: the url to be visited.
+/// - `u32`: depth relative to the starting url.
 pub struct QueueItem(pub String, pub u32);
 
 impl QueueItem {
